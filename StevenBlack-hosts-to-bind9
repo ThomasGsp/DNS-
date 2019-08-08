@@ -1,0 +1,35 @@
+#!/bin/sh
+
+#download source
+wget -O hosts https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts 
+
+mkdir -p zones
+rm -rf zones/*.overwrite.db
+> named.conf.overwrite
+> named.conf.overwrite.tmp
+
+while read line; do
+	if [[ $line =~ ^0.0.0.0 ]];
+	then
+		zone=$(echo $line | grep -E -o "(([a-zA-Z](-?[a-zA-Z0-9])*)\.)+[a-zA-Z]{2,}");
+		if ! [ -z "$zone" ]
+		then
+        		echo "processing zone: $zone";
+        		echo "\$ORIGIN $zone." > zones/$zone.overwrite.db;
+        		echo "\$TTL 1h" >> zones/$zone.overwrite.db;
+        		echo "@		IN  	SOA ns.$zone. email.$zone. ( 
+								2007120710; 
+								1d; 
+								2h; 
+								4w; 
+								1h )" >> zones/$zone.overwrite.db;
+   			echo "		IN	NS	ns.fake.local." >> zones/$zone.overwrite.db;
+        		echo "$zone.	IN	A	0.0.0.0" >> zones/$zone.overwrite.db;
+			echo 'zone '\"${zone}\"' { type master; notify no; file '\"/etc/bind/zones/${zone}.overwrite.db\"'; };' >> named.conf.overwrite.tmp
+		fi
+	fi
+	unset zone
+done < hosts
+sort -u named.conf.overwrite.tmp > named.conf.overwrite
+rm named.conf.overwrite.tmp
+
